@@ -37,6 +37,133 @@
 		</ul>
 	</body>
 	<script>
+		var ID = function (root) {
+			var idMap = {},
+				seed = 0,
+				supportsDataset = (function () {
+					var el = document.createElement('div');
+					return !!el.dataset;
+				}()),
+				gen = function () {
+					return root + "-" + (++seed);
+				},
+				p = {
+					'get': function (el, generate) {
+						var r = el.id || supportsDataset && el.dataset && el.dataset.id,
+							k;
+						if (!r && (!supportsDataset || !el.dataset)) {
+							for (k in idMap) {
+								if (idMap[k] === el) {
+									r = k;
+								}
+							}
+						}
+						if (!r && generate) {
+							r = gen();
+							if (supportsDataset && el.dataset) {
+								el.dataset.id = r;
+							}
+							idMap[r] = el;
+						}
+						return r;
+					},
+					'fetch': function (id) {
+						return idMap[id];
+					},
+					'debug': function () {
+						return [root, seed, supportsDataset, gen, idMap, p];
+					}
+				};
+			return p;
+		};
+		var Events = (function () {
+			function typesplit(s) {
+				var l = s.indexOf('.') > 0 ? s.split('.') : [s, ''];
+				return {'type': l.shift(), 'ns': l.join('.')};
+			}
+			var idGen = ID('events'),
+				handlers = {},
+				p = {
+					'on': function (el, type, handler, scope) {
+						type = typesplit(type);
+						var id = idGen.get(el, true),
+							d = {
+								id: idGen.get(el, true),
+								el: el,
+								type: type.type,
+								ns: type.ns,
+								handler: handler,
+								proxy: function () {
+									handler.apply(scope, arguments);
+								},
+								start: (new Date).getTime()
+							};
+						if (!handlers[id]) {
+							handlers[id] = {};
+						}
+						if (!handlers[id][type.type]) {
+							handlers[id][type.type] = [];
+						}
+						handlers[id][type.type].push(d);
+						if (el.nodeType === 1) {
+							el.addEventListener(type.type, d.proxy);
+						}
+						return p;
+					},
+					'off': function (el, type, handler) {
+						var id = idGen.get(el),
+							dtype = typesplit(type),
+							h, i, j, n,
+							r = [];
+						if (!id) {
+							return p;
+						}
+						h = handlers[id][dtype.type] || [];
+						for (i = 0, j = h.length; i < j; i++) {
+							n = h[i];
+							if ((dtype.ns && n.ns === dtype.ns || !dtype.ns) && (handler && n.handler === handler || !handler)) {
+								if (el.nodeType === 1) {
+									el.removeEventListener(dtype.type, h[i].proxy);
+								}
+							} else {
+								r.push(n);
+							}
+						}
+						if (r.length) {
+							handlers[id][dtype.type] = r;
+						} else {
+							delete handlers[id][dtype.type];
+						}
+					},
+					'trigger': function (el, type, data) {
+						if (el.nodeType === 1) {
+							if (el.type) {
+								el[type]();
+							}
+						} else {
+							var id = idGen.get(el), 
+								dtype = typesplit(type),
+								h, i, j, n;
+							if (!id) {
+								return p;
+							}
+							h = handlers[id][dtype.type] || [];
+							for (i = 0, j = h.length; i < j; i++) {
+								n = h[i];
+								n.proxy(data);
+							}
+						}
+					},
+					'gc': function () {
+						// remove all nodes with no parent
+						// no idea how to make sure we don't lean objects though....	
+					},
+					'debug': function () {
+						return [idGen, handlers, p];
+					}
+				};
+			return p;
+		}());
 		var LightBox = (function () {
 			var LB = function (el, conf) {
 					if (this === window) {
@@ -50,29 +177,29 @@
 					this.state = 0;
 				},
 				b = {
-					show: function (el) {
+					'show': function (el) {
 						el.style.display = 'block';
 						return el;
 					},
-					hide: function (el) {
+					'hide': function (el) {
 						el.style.display = 'none';
 						return el;
 					},
-					on: function (el, type, handler, scope) {
+					'on': function (el, type, handler, scope) {
 						el['on' + type] = function () {
 							handler.apply(scope || this, arguments);
 						}
 						return el;
 					},
-					off: function (el, type) {
+					'off': function (el, type) {
 						el['on' + type] = null;
 						return el;
 					},
-					hasClass: function (el, cls) {
+					'hasClass': function (el, cls) {
 						var c = ' ' + el.className + ' ';
 						return c.indexOf(' ' + cls + ' ') >= 0;
 					},
-					extend: function (a, b) {
+					'extend': function (a, b) {
 						for (k in b) {
 							a[k] = b[k];
 						}

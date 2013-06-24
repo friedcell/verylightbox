@@ -3,44 +3,52 @@
 	<head>
 		<title>Lightbox</title>
 		<style>
-			html, body {margin:0;padding:0;border:0;background:#ccf;}
+			html, body {margin:0;padding:0;border:0;background:#ccf;font-family:sans-serif;}
 			ul, li {margin:0;padding:0;border:0;display:block;}
 			li {padding:5px 0 0 5px;float:left;}
 			a img {border:0;}
+			ul li a img {height:150px;}
 			
-			.LBwrapper {position:fixed;top:0;right:0;bottom:0;left:0;padding:20px;z-index:10000;background:rgba(0,0,0,.75);}
-			.LBwrapper .LBcontent {margin:0 auto;text-align:center;}
-			.LBwrapper .LBcontent img {border:20px solid #fff;max-width:100%;max-height:100%;
-				-webkit-box-sizing:border-box;
-				-moz-box-sizing:border-box;
-				box-sizing:border-box;
+			.LBwrapper {position:fixed;top:0;right:0;bottom:0;left:0;padding:20px;z-index:10000;background:rgba(0,0,0,.75);text-align:center;line-height:0;}
+			.LBwrapper .LBcontent {display:inline;}
+			.LBwrapper .LBcontent img {display:inline;border:10px solid #fff;max-width:100%;max-height:100%;vertical-align:-.25em;
+				-webkit-box-sizing:border-box;-webkit-border-radius:2px;
+				-moz-box-sizing:border-box;-moz-border-radius:2px;
+				box-sizing:border-box;border-radius:2px;
 			}
+			
+			.LBwrapper .LBcontent.withText {position:relative;}
+			.LBwrapper .LBcontent.withText img {border-bottom-width:40px;}
+			.LBwrapper .LBcontent.withText .LBabout {position:absolute;bottom:0;left:0;right:0;padding:10px 0;margin:0 10px;line-height:20px;text-align:left;height:20px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+			
+			.LBwrapper .LBcontent.withDownload .LBabout {padding-right:5em;}
+			.LBwrapper .LBcontent.withDownload .LBdownload {position:absolute;bottom:0;right:10px;padding:10px 0;line-height:20px;font-size:12px;text-transform:uppercase;}
 		</style>
 	</head>
 	<body>
 		<ul>
 			<li>
-				<a class="lb" href="download.jpg" data-big="bigger.jpg">
-					<img src="thumb.jpg" title="Oakland?" alt="A photo of Oakland coast before landing at SFO" />
+				<a class="lb" href="download1.jpg" data-big="bigger1.jpg">
+					<img src="thumb1.jpg" title="Candice Swanepoel" alt="Top 99 Women" />
 				</a>
 			</li>
 			<li>
-				<a class="lb" href="download.jpg" data-big="bigger.jpg">
-					<img src="thumb.jpg" title="Oakland?" alt="A photo of Oakland coast before landing at SFO" />
+				<a class="lb" href="download2.jpg" data-big="bigger2.jpg">
+					<img src="thumb2.jpg" title="Candice Swanepoel" alt="Design your Trust" />
 				</a>
 			</li>
 			<li>
-				<a class="lb" href="download.jpg" data-big="bigger.jpg">
-					<img src="thumb.jpg" title="Oakland?" alt="A photo of Oakland coast before landing at SFO" />
+				<a class="lb" href="download3.jpg" data-big="bigger3.jpg">
+					<img src="thumb3.jpg" title="Candice Swanepoel" alt="38 Breath Taking Victoria's Secret Swim Photos" />
 				</a>
 			</li>
 		</ul>
 	</body>
 	<script>
-		/*
-		ID provides an object that gives out unique ids to DOM elements and indexes them
-		*/
-		var ID = function (root) {
+		/**
+		 * ID provides an object that gives out unique ids to DOM elements and indexes them
+		 **/
+		/*var ID = function (root) {
 			var idMap = {},
 				seed = 0,
 				supportsDataset = (function () {
@@ -82,11 +90,11 @@
 					}
 				};
 			return p;
-		};
-		/*
-		Events provides an object that handles events
-		*/
-		var Events = (function () {
+		};*/
+		/**
+		 * Events provides an object that handles events
+		 **/
+		/*var Events = (function () {
 			function typesplit(s) {
 				var l = s.indexOf('.') > 0 ? s.split('.') : [s, ''];
 				return {'type': l.shift(), 'ns': l.join('.')};
@@ -172,59 +180,114 @@
 					}
 				};
 			return p;
-		}());
+		}());*/
 		/*
 		LightBox object
 		*/
 		var LightBox = (function () {
-			var LB = function (el, conf) {
+			var LB = function (thumbs, conf) {
+					var i;
 					if (this === window) {
-						var i = new LB(el, list);
+						i = new LB(thumbs, list);
 						LB.instances.push(i);
 						return i;
 					}
-					this.el = el;
-					this.link = this.setupLink(el);
-					this.conf = conf || {};
+					this.conf = b.extend(b.extend({}, LB.defaults), conf);
+					this.thumbs = thumbs;
+					this.links = [];
+					for (i = this.thumbs.length - 1; i >= 0; i -= 1) {
+						this.links[i] = this.setupLink(i);
+					}
+					this.selectedIndex = -1;
+					this.content = null;
 					this.state = 0;
 				},
 				b = {
-					'show': function (el) {
-						el.style.display = 'block';
+					'append': function (wr, el) {
+						wr.appendChild(el);
 						return el;
 					},
-					'hide': function (el) {
-						el.style.display = 'none';
+					'detach': function (el) {
+						el.parentNode && el.parentNode.removeChild(el);
 						return el;
 					},
-					'on': function (el, type, handler, scope) {
-						el['on' + type] = function () {
-							handler.apply(scope || this, arguments);
-						}
+					'on': function (el, type, handler, scope, addArgs) {
+						handler.__handler__ = function () {
+							var args = Array.prototype.slice.call(arguments);
+							args = args.concat(addArgs || []);
+							handler.apply(scope || this, args);
+						};
+						el.addEventListener(type, handler.__handler__);
 						return el;
 					},
-					'off': function (el, type) {
-						el['on' + type] = null;
+					'off': function (el, type, handler) {
+						el.removeEventListener(type, handler.__handler__)
 						return el;
 					},
 					'hasClass': function (el, cls) {
 						var c = ' ' + el.className + ' ';
 						return c.indexOf(' ' + cls + ' ') >= 0;
 					},
+					'addClass': function (el, cls) {
+						var c;
+						if (!b.hasClass(el, cls)) {
+							c = el.className + ' ' + cls;
+							while (c.indexOf('  ') >= 0) {
+								c = c.replace(/  /g, ' ');
+							}
+							el.className = c;
+						}
+					},
 					'extend': function (a, b) {
 						for (k in b) {
 							a[k] = b[k];
 						}
 						return a;
+					},
+					'repaint': function (el) {
+						var d = el.style.display;
+						el.style.display = 'none';
+						el.parentNode.offsetWidth;
+						el.style.display = 'block';
 					}
-				};
-			LB.instances = [];
+				},
+				e = {
+					'linkClick': function (ev, idx) {
+						var link = ev.currentTarget || ev.srcElement;
+						ev.preventDefault();
+						if (idx !== this.selectedIndex) {
+							this.selectedIndex = idx;
+							this.setupContent();
+						}
+						this.open();
+					},
+					'openWrapperClick': function (ev) {
+						var target = ev.target || ev.srcElement;
+						console.log(ev, target, this.conf.wrapperClass);
+						if (b.hasClass(target, this.conf.wrapperClass)) {
+							this.close();
+						}
+					},
+					'imageLoad': function (ev) {
+						var img = this.content.getElementsByTagName('img')[0];
+						b.repaint(this.content);
+					}
+				}
+			b.extend(LB, {
+				"instances": [],
+				"defaults": {
+					wrapperClass: 'LBwrapper',
+					contentClass: 'LBcontent'
+				},
+				"handlers": e,
+				"helpers": b
+			});
 			
 			//!-- remove in production
-			var reqs = ["setupLink", "open", "showContent", "close", "hideContent"],
-				f = (function (name) {
+			var reqs = ["setupLink", "setupContent", "open", "close", "showContent", "hideContent"],
+				f = function (name) {
 					return function () {throw Error("Missing a required function: " + name);};
-				}),
+				},
 				i = 0, j = 0;
 			for (i = 0, j = reqs.length; i < j; i++) {
 				LB.prototype[reqs[i]] = f(reqs[i]);
@@ -234,59 +297,65 @@
 			/**
 			 * Sets up and returns the link that handles the LightBox events
 			 **/
-			LB.prototype.setupLink = function (el) {
-				var _this = this;
-					link = el.parentNode;
-				b.on(link, 'click', function (ev) {
-					ev.preventDefault();
-					this.open();
-				}, this);
+			LB.prototype.setupLink = function (idx) {
+				var link = this.thumbs[idx].parentNode;
+				b.on(link, 'click', e.linkClick, this, [idx]);
 				return link;
+			};
+			/**
+			 * Should produce the HTML of the enlarged content & append it to the doc
+			 **/
+			LB.prototype.setupContent = function () {
+				var wrapper = this.content || document.createElement('div'),
+					content = document.createElement('div'),
+					img = document.createElement('img'),
+					link = this.links[this.selectedIndex],
+					thumb = this.thumbs[this.selectedIndex],
+					src = link.dataset && link.dataset.big || link.href,
+					title = thumb.title || '',
+					alt = thumb.alt || '';
+				wrapper.className = this.conf.wrapperClass;
+				wrapper.innerHTML = ''; // clean up the content
+				content.className = this.conf.contentClass;
+				b.on(img, 'load', e.imageLoad, this);
+				b.extend(img, {
+					'src': src,
+					'title': title,
+					'alt': alt
+				});
+				b.on(wrapper, 'click', e.openWrapperClick, this);
+				b.append(content, img);
+				b.append(wrapper, content);
+				this.content = wrapper;
 			};
 			/**
 			 * Called when you want the lightbox to open
 			 **/
 			LB.prototype.open = function () {
 				this.showContent();
-				b.on(document, 'keyup', function (ev) {
-					if (ev.keyCode === 27) {
-						this.close();
-					}
-				}, this);
-				this.state = true;
+				this.state = 1;
 			};
 			/**
 			 * Called when you want the lightbox to close
 			 **/
 			LB.prototype.close = function () {
 				this.hideContent();
-				b.off(document, 'keyup');
-				this.state = false;
-			}
+				this.state = 0;
+			};
 			/**
-			 * Should produce the HTML of the enlarged content & show it
+			 * Should show the content or set it up if it's not present
 			 **/
 			LB.prototype.showContent = function () {
-				if (this.content) {
-					b.show(this.content);
-				} else {
-					var el = document.body.appendChild(document.createElement('div'));
-					el.className = 'LBwrapper';
-					el.innerHTML = '<div class="LBcontent"><img src="' + (this.link.dataset.big || this.link.href) + '" title="' + (this.el.title || '') + '" alt="' + (this.el.alt || '') + '" /></div>';
-					b.on(el, 'click', function (ev) {
-						var el = ev.srcElement;
-						if (b.hasClass(el, 'LBwrapper') || b.hasClass(el, 'LBcontent')) {
-							this.close();
-						}
-					}, this);
-					this.content = el;
+				if (!this.content) {
+					this.setupContent();
 				}
+				b.append(document.body, this.content);
 			};
 			/**
 			 * Should hide the elarged content
 			 **/
 			LB.prototype.hideContent = function () {
-				b.hide(this.content);
+				b.detach(this.content);
 			};
 			
 			/* OPTIONAL: cleaner */
@@ -297,21 +366,124 @@
 					if (o.state) {
 						o.close();
 					}
-					b.off(o.el, 'click');
-					b.off(o.link, 'click');
-					o.el = null;
-					o.link = null;
+					b.off(o.link, 'click', e.linkClick);
+					o.thumbs = null;
+					o.links = null;
+					o.content = null;
 				}
 				LB.instances = [];
-			}
+			};
 			/* -- */
+			
+			LB.extend = function (fn) {
+				b.extend(LB.prototype, fn(LB));
+			}
 			
 			return LB;
 		}());
+
+		// add keyboard events to close when Esc is pressed
+		LightBox.extend(function (LB) {
+			var b = LB.helpers,
+				e = LB.handlers,
+				close = LB.prototype.close,
+				open = LB.prototype.open;
+			b.extend(e, {
+				'openEscape': function (ev) {
+					if (ev.keyCode === 27) {
+						this.close();
+					}
+				}
+			});
+			return {
+				"close": function () {
+					close.apply(this, arguments);
+					b.off(document, 'keyup', e.openEscape);
+				},
+				"open": function () {
+					open.apply(this, arguments)
+					b.on(document, 'keyup', e.openEscape, this);
+				}
+			}
+		});
+
+		// display title 
+		LightBox.extend(function (LB) {
+			var b = LB.helpers,
+				setupContent = LB.prototype.setupContent;
+			b.extend(LB.defaults, {'aboutClass': 'LBabout'});
+			return {
+				"setupContent": function () {
+					setupContent.apply(this, arguments);
+					var co = this.content.getElementsByClassName(this.conf.contentClass)[0],
+						ab = document.createElement('div'),
+						thumb = this.thumbs[this.selectedIndex];
+					b.addClass(co, 'withText');
+					ab.className = this.conf.aboutClass;
+					ab.title = thumb.title + ' ' + thumb.alt;
+					ab.innerHTML = '<strong>' + thumb.title + '</strong> ' + thumb.alt;
+					co.appendChild(ab);
+				}
+			}
+		});
+		
+		// display download link 
+		LightBox.extend(function (LB, b) {
+			var b = LB.helpers,
+				setupContent = LB.prototype.setupContent;
+			b.extend(LB.defaults, {'downloadClass': 'LBdownload'});
+			return {
+				"setupContent": function () {
+					setupContent.apply(this, arguments);
+					var co = this.content.getElementsByClassName(this.conf.contentClass)[0],
+						ab = document.createElement('div'),
+						link = this.links[this.selectedIndex],
+						href = link.dataset && link.dataset.download || link.href;
+					b.addClass(co, 'withText');
+					b.addClass(co, 'withDownload');
+					ab.className = this.conf.downloadClass;
+					ab.innerHTML = '<a href="' + href + '">Download</a>';
+					co.appendChild(ab);
+				}
+			}
+		});
+		
+		// keyboard next/previous controls 
+		LightBox.extend(function (LB) {
+			var b = LB.helpers,
+				e = LB.handlers,
+				close = LB.prototype.close,
+				open = LB.prototype.open;
+			b.extend(e, {
+				'openNextPrevious': function (ev) {
+					var d = ev.keyCode === 39 && 1 || ev.keyCode === 37 && -1 || 0;
+					if (d) {
+						this.selectedIndex = (this.selectedIndex + d + this.thumbs.length) % this.thumbs.length;
+						this.setupContent();
+					}
+				}
+			});
+			return {
+				"close": function () {
+					close.apply(this, arguments);
+					if (this.thumbs.length) {
+						b.off(document, 'keyup', e.openNextPrevious);
+					}
+				},
+				"open": function () {
+					open.apply(this, arguments);
+					if (this.thumbs.length) {
+						b.on(document, 'keyup', e.openNextPrevious, this);
+					}
+				}
+			}
+		});
+		
 		var list = document.querySelectorAll(".lb img"),
 			i = 0, j = 0;
+		LightBox(list);
 		for (j = list.length; i < j; i++) {
-			LightBox(list[i], {list: list});
+			//LightBox([list[i]]);
 		}
 	</script>
 </html>

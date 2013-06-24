@@ -37,6 +37,9 @@
 		</ul>
 	</body>
 	<script>
+		/*
+		ID provides an object that gives out unique ids to DOM elements and indexes them
+		*/
 		var ID = function (root) {
 			var idMap = {},
 				seed = 0,
@@ -47,10 +50,14 @@
 				gen = function () {
 					return root + "-" + (++seed);
 				},
+				getData = function (el, prop, def) {
+					return supportsDataset && el.dataset && el.dataset[prop] || def;
+				},
 				p = {
 					'get': function (el, generate) {
-						var r = el.id || supportsDataset && el.dataset && el.dataset.id,
+						var r = el.id || getData(el, 'id'),
 							k;
+						// if element doesn't have an id attached, try to find it in the index
 						if (!r && (!supportsDataset || !el.dataset)) {
 							for (k in idMap) {
 								if (idMap[k] === el) {
@@ -76,6 +83,9 @@
 				};
 			return p;
 		};
+		/*
+		Events provides an object that handles events
+		*/
 		var Events = (function () {
 			function typesplit(s) {
 				var l = s.indexOf('.') > 0 ? s.split('.') : [s, ''];
@@ -136,10 +146,9 @@
 						}
 					},
 					'trigger': function (el, type, data) {
-						if (el.nodeType === 1) {
-							if (el.type) {
-								el[type]();
-							}
+						if (el.nodeType === 1 && el.type) {
+							el[type]();
+							// how do you trigger custom event types? surely not manually?!
 						} else {
 							var id = idGen.get(el), 
 								dtype = typesplit(type),
@@ -164,6 +173,9 @@
 				};
 			return p;
 		}());
+		/*
+		LightBox object
+		*/
 		var LightBox = (function () {
 			var LB = function (el, conf) {
 					if (this === window) {

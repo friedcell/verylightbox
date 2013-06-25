@@ -188,7 +188,7 @@
 			var LB = function (thumbs, conf) {
 					var i;
 					if (this === window) {
-						i = new LB(thumbs, list);
+						i = new LB(thumbs, conf);
 						LB.instances.push(i);
 						return i;
 					}
@@ -417,12 +417,15 @@
 					setupContent.apply(this, arguments);
 					var co = this.content.getElementsByClassName(this.conf.contentClass)[0],
 						ab = document.createElement('div'),
-						thumb = this.thumbs[this.selectedIndex];
-					b.addClass(co, 'withText');
-					ab.className = this.conf.aboutClass;
-					ab.title = thumb.title + ' ' + thumb.alt;
-					ab.innerHTML = '<strong>' + thumb.title + '</strong> ' + thumb.alt;
-					co.appendChild(ab);
+						thumb = this.thumbs[this.selectedIndex],
+						hasTitle = thumb.title || thumb.alt;
+					if (hasTitle) {
+						b.addClass(co, 'withText');
+						ab.className = this.conf.aboutClass;
+						ab.title = thumb.title + ' ' + thumb.alt;
+						ab.innerHTML = '<strong>' + thumb.title + '</strong> ' + thumb.alt;
+						co.appendChild(ab);
+					}
 				}
 			}
 		});

@@ -10,7 +10,7 @@
 			ul li a img {height:150px;}
 			
 			.LBwrapper {position:fixed;top:0;right:0;bottom:0;left:0;padding:20px;z-index:10000;background:rgba(0,0,0,.75);text-align:center;line-height:0;}
-			.LBwrapper .LBcontent {display:inline;position:relative;}
+			.LBwrapper .LBcontent {display:inline;position:relative;z-index:1;}
 			.LBwrapper .LBcontent img {display:inline;border:10px solid #fff;max-width:100%;max-height:100%;vertical-align:-.25em;
 				-webkit-box-sizing:border-box;-webkit-border-radius:2px;
 				-moz-box-sizing:border-box;-moz-border-radius:2px;
@@ -18,20 +18,20 @@
 			}
 			
 			.LBwrapper .LBcontent.withText img {border-bottom-width:40px;}
-			.LBwrapper .LBcontent .LBabout {position:absolute;bottom:0;left:0;right:0;padding:10px 0;margin:0 10px;line-height:20px;text-align:left;height:20px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+			.LBwrapper .LBcontent .LBabout {position:absolute;z-index:1;bottom:0;left:0;right:0;padding:10px 0;margin:0 10px;line-height:20px;text-align:left;height:20px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
 			
 			.LBwrapper .LBcontent.withDownload .LBabout {padding-right:5em;}
-			.LBwrapper .LBcontent .LBdownload {position:absolute;bottom:10px;right:10px;padding:.25em .5em;text-transform:uppercase;color:#222;font-size:.625em;line-height:1.5;background:#ccc;color:#222;text-decoration:none;font-weight:bold;cursor:pointer;
-				-webkit-border-radius:2px;-webkit-box-shadow:0 0 1px #000;
-				-moz-border-radius:2px;-moz-box-shadow:0 0 1px #000;
-				border-radius:2px;box-shadow:0 0 1px #000;
-			}
-			.LBwrapper .LBcontent.withShortDownload .LBabout {padding-right:2em;}
-			
-			.LBwrapper .LBclose {position:absolute;right:5px;top:5px;display:block;padding:.25em .5em;background:#fff;color:#222;text-decoration:none;text-transform:uppercase;font-weight:bold;font-size:.625em;line-height:1.5;cursor:pointer;
+			.LBwrapper .LBcontent .LBdownload {position:absolute;z-index:10;bottom:10px;right:10px;padding:.25em .5em;text-transform:uppercase;color:#222;font-size:.625em;line-height:1.5;background:#ccc;color:#222;text-decoration:none;font-weight:bold;cursor:pointer;
 				-webkit-border-radius:2px;
 				-moz-border-radius:2px;
 				border-radius:2px;
+			}
+			.LBwrapper .LBcontent.withShortDownload .LBabout {padding-right:2em;}
+			
+			.LBwrapper .LBclose {position:absolute;z-index:10;right:5px;top:5px;display:block;padding:.25em .5em;background:#fff;color:#222;text-decoration:none;text-transform:uppercase;font-weight:bold;font-size:.625em;line-height:1.5;cursor:pointer;
+				-webkit-border-radius:2px;-webkit-box-shadow:0 0 1px #000;
+				-moz-border-radius:2px;-moz-box-shadow:0 0 1px #000;
+				border-radius:2px;box-shadow:0 0 1px #000;
 			}
 		</style>
 	</head>
@@ -57,6 +57,18 @@
 			<li>
 				<a class="lb" href="download.jpg" data-big="bigger.jpg">
 					<img src="thumb.jpg" title="Oakland?" alt="Landing at SFO" />
+				</a>
+			</li>
+		</ul>
+		<ul class="list3">
+			<li>
+				<a class="lb" href="download.jpg" data-big="bigger.jpg">
+					<img src="thumb.jpg" title="Oakland?" alt="Landing at SFO" />
+				</a>
+			</li>
+			<li>
+				<a class="lb" href="download3.jpg" data-big="bigger3.jpg">
+					<img src="thumb3.jpg" title="Candice Swanepoel" alt="38 Breath Taking Victoria's Secret Swim Photos" />
 				</a>
 			</li>
 		</ul>
@@ -604,5 +616,13 @@
 		lb1.extend(LBCloseButton);
 		
 		lb2 = LightBox(document.querySelectorAll(".list2 .lb img"));
+		
+		function CustomLightBox() {
+			var l = LightBox.apply(this, arguments);
+			l.extend(LBKeyboardNav);
+			l.extend(LBCloseButton);
+			return l;
+		}
+		lb3 = CustomLightBox(document.querySelectorAll(".list3 .lb img"))
 	</script>
 </html>

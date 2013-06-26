@@ -4,29 +4,29 @@
 		<title>Lightbox</title>
 		<style>
 			html, body {margin:0;padding:0;border:0;background:#ffc;font-family:sans-serif;}
-			ul, li {margin:0;padding:0;border:0;display:block;}
+			ul, li {margin:0;padding:0;border:0;display:block;overflow:hidden;}
 			li {padding:5px 0 0 5px;float:left;}
 			a img {border:0;}
 			ul li a img {height:150px;}
 			
 			.LBwrapper {position:fixed;top:0;right:0;bottom:0;left:0;padding:20px;z-index:10000;background:rgba(0,0,0,.75);text-align:center;line-height:0;}
-			.LBwrapper .LBcontent {display:inline;}
+			.LBwrapper .LBcontent {display:inline;position:relative;}
 			.LBwrapper .LBcontent img {display:inline;border:10px solid #fff;max-width:100%;max-height:100%;vertical-align:-.25em;
 				-webkit-box-sizing:border-box;-webkit-border-radius:2px;
 				-moz-box-sizing:border-box;-moz-border-radius:2px;
 				box-sizing:border-box;border-radius:2px;
 			}
 			
-			.LBwrapper .LBcontent.withText {position:relative;}
 			.LBwrapper .LBcontent.withText img {border-bottom-width:40px;}
-			.LBwrapper .LBcontent.withText .LBabout {position:absolute;bottom:0;left:0;right:0;padding:10px 0;margin:0 10px;line-height:20px;text-align:left;height:20px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
+			.LBwrapper .LBcontent .LBabout {position:absolute;bottom:0;left:0;right:0;padding:10px 0;margin:0 10px;line-height:20px;text-align:left;height:20px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;}
 			
 			.LBwrapper .LBcontent.withDownload .LBabout {padding-right:5em;}
-			.LBwrapper .LBcontent.withDownload .LBdownload {position:absolute;bottom:10px;right:10px;padding:.25em .5em;text-transform:uppercase;color:#222;font-size:.625em;line-height:1.5;background:#ccc;color:#222;text-decoration:none;font-weight:bold;cursor:pointer;
+			.LBwrapper .LBcontent .LBdownload {position:absolute;bottom:10px;right:10px;padding:.25em .5em;text-transform:uppercase;color:#222;font-size:.625em;line-height:1.5;background:#ccc;color:#222;text-decoration:none;font-weight:bold;cursor:pointer;
 				-webkit-border-radius:2px;-webkit-box-shadow:0 0 1px #000;
 				-moz-border-radius:2px;-moz-box-shadow:0 0 1px #000;
 				border-radius:2px;box-shadow:0 0 1px #000;
 			}
+			.LBwrapper .LBcontent.withShortDownload .LBabout {padding-right:2em;}
 			
 			.LBwrapper .LBclose {position:absolute;right:5px;top:5px;display:block;padding:.25em .5em;background:#fff;color:#222;text-decoration:none;text-transform:uppercase;font-weight:bold;font-size:.625em;line-height:1.5;cursor:pointer;
 				-webkit-border-radius:2px;
@@ -36,7 +36,7 @@
 		</style>
 	</head>
 	<body>
-		<ul>
+		<ul class="list1">
 			<li>
 				<a class="lb" href="download1.jpg" data-big="bigger1.jpg">
 					<img src="thumb1.jpg" title="Candice Swanepoel" alt="Top 99 Women" />
@@ -50,6 +50,13 @@
 			<li>
 				<a class="lb" href="download3.jpg" data-big="bigger3.jpg">
 					<img src="thumb3.jpg" title="Candice Swanepoel" alt="38 Breath Taking Victoria's Secret Swim Photos" />
+				</a>
+			</li>
+		</ul>
+		<ul class="list2">
+			<li>
+				<a class="lb" href="download.jpg" data-big="bigger.jpg">
+					<img src="thumb.jpg" title="Oakland?" alt="Landing at SFO" />
 				</a>
 			</li>
 		</ul>
@@ -206,7 +213,6 @@
 			}
 			return function (scope) {
 				var store = {};
-				scope = scope || this;
 				return {
 					'on': function (type, handler, data) {
 						if (!store[type]) store[type] = [[handler, data]];
@@ -230,14 +236,15 @@
 						var i = 0,
 							l = store[type] && store[type].length || 0,
 							ev = createEvent(type),
-							n;
+							fireScope = scope || this,
+							item, retVal;
 						for (; i < l; i += 1) {
-							n = store[type][i];
+							item = store[type][i];
 							try {
-								ev.data = n[1];
-								n[0].apply(scope, [ev].concat(data || []));
+								ev.data = item[1];
+								retVal = item[0].apply(fireScope, [ev].concat(data || []));
 							} catch (e) {console.log(e);}
-							if (ev.stop) {
+							if (ev.stop || retVal === false) {
 								break;
 							}
 						}
@@ -250,7 +257,6 @@
 		 **/
 		var LightBox = (function () {
 			var doc = document,
-				events = CustEv(LB),
 				LB = function (thumbs, conf) {
 					var i;
 					if (this === window) {
@@ -259,14 +265,17 @@
 						return i;
 					}
 					b.extend(this, {
-						'events': CustEv(this),
-						'conf': b.extend(b.extend({}, LB.defaults), conf),
+						'conf': b.inject(LB.conf, conf),
 						'thumbs': thumbs,
 						'links': [],
 						'selectedIndex': -1,
 						'content': null,
-						'state': 0	
+						'state': 0,
+						'extend': function (fn) {
+							b.extend(this, fn(this, b));
+						}
 					});
+					b.extend(this, CustEv(this));
 					for (i = this.thumbs.length - 1; i >= 0; i -= 1) {
 						this.links[i] = this.setupLink(i);
 					}
@@ -318,6 +327,9 @@
 						el.style.display = 'none';
 						el.parentNode.offsetWidth;
 						el.style.display = d;
+					},
+					'inject': function (defaults, obj) {
+						return b.extend(b.extend({}, defaults), obj);
 					}
 				},
 				e = {
@@ -342,15 +354,15 @@
 				}
 			b.extend(LB, {
 				"instances": [],
-				"defaults": {
+				"conf": {
 					wrapperCls: 'LBwrapper',
 					contentCls: 'LBcontent',
 					objectCls: 'LBobject'
 				},
 				"handlers": e,
-				"helpers": b,
-				"events": events
+				"helpers": b
 			});
+			b.extend(LB, CustEv());
 			
 			b.extend(LB.prototype, {
 				/**
@@ -391,8 +403,8 @@
 					});
 					b.append(content, img);
 					this.content = b.append(wrapper, content);
-					events.fire('afterSetupContent', [this]);
-					this.events.fire('afterSetupContent', [this]);
+					LB.fire.call(this, 'afterSetupContent');
+					this.fire('afterSetupContent');
 				},
 				/**
 				 * Called when you want the lightbox to open
@@ -400,8 +412,8 @@
 				open: function () {
 					this.showContent();
 					this.state = 1;
-					events.fire('afterOpen', [this]);
-					this.events.fire('afterOpen', [this]);
+					LB.fire.call(this, 'afterOpen');
+					this.fire('afterOpen');
 				},
 				/**
 				 * Called when you want the lightbox to close
@@ -409,8 +421,8 @@
 				close: function () {
 					this.hideContent();
 					this.state = 0;
-					events.fire('afterClose', [this]);
-					this.events.fire('afterClose', [this]);
+					LB.fire.call(this, 'afterClose');
+					this.fire('afterClose');
 				},
 				/**
 				 * Should show the content or set it up if it's not present
@@ -430,18 +442,21 @@
 			});
 			
 			LB.extend = function (fn) {
-				b.extend(LB.prototype, fn(LB) || {});
+				b.extend(LB.prototype, fn(LB, LB.helpers) || {});
 			}
 			
 			return LB;
 		}());
 
 		// add cleaner
-		LightBox.extend(function (LB) {
-			LB.clean = function () {
-				var i = 0, j = LB.instances.length, o;
+		function LBCleanerPlugin(obj, helpers) {
+			if (!obj.prototype) { // only apply to constructor, not instance
+				return;
+			}
+			obj.clean = function () {
+				var i = 0, j = obj.instances.length, o;
 				for (; i < j; i++) {
-					o = LB.instances[i];
+					o = obj.instances[i];
 					if (o.state) {
 						o.close();
 					}
@@ -450,30 +465,29 @@
 					o.links = null;
 					o.content = null;
 				}
-				LB.instances = [];
+				obj.instances = [];
 			};
-		});
-
+		}
+		
 		// add keyboard events to close when Esc is pressed
-		LightBox.extend(function (LB) {
+		function LBEscapeClosePlugin(obj, helpers) {
 			var doc = document;
 			function escape(ev) {
 				if (ev.keyCode === 27) {
 					this.close();
 				}
 			}
-			LB.events.on('afterClose', function (ev, inst) {
-				LB.helpers.off(doc, 'keyup', escape);
+			obj.on('afterClose', function (ev) {
+				helpers.off(doc, 'keyup', escape);
 			});
-			LB.events.on('afterOpen', function (ev, inst) {
-				LB.helpers.on(doc, 'keyup', escape, inst);
+			obj.on('afterOpen', function (ev) {
+				helpers.on(doc, 'keyup', escape, this);
 			});
-		});
+		}
 
 		// display title 
-		LightBox.extend(function (LB) {
-			var b = LB.helpers;
-			b.extend(LB.defaults, {
+		function LBDisplayTitlePlugin(obj, helpers) {
+			obj.conf = helpers.inject({
 				'aboutCls': 'LBabout',
 				'textModCls': 'withText',
 				'displayTitle': function (elm) {
@@ -482,16 +496,17 @@
 				'displayHTML': function (elm) {
 					return (elm.title || elm.alt) ? '<strong>' + elm.title + '</strong> ' + elm.alt : '';
 				}
-			});
-			LB.events.on('afterSetupContent', function (ev, inst) {
-				var conf = inst.conf,
+			}, obj.conf);
+			obj.on('afterSetupContent', function (ev) {
+				var inst = this,
+					conf = inst.conf,
 					contentElm = inst.content.getElementsByClassName(conf.contentCls)[0],
 					aboutElm = document.createElement('div'),
 					thumb = inst.thumbs[inst.selectedIndex]
 					hasTitle = thumb.title || thumb.alt;
 				if (hasTitle) {
-					b.addClass(contentElm, conf.textModCls);
-					b.extend(aboutElm, {
+					helpers.addClass(contentElm, conf.textModCls);
+					helpers.extend(aboutElm, {
 						'className': conf.aboutCls,
 						'title': conf.displayTitle(thumb),
 						'innerHTML': conf.displayHTML(thumb)
@@ -499,27 +514,27 @@
 					contentElm.appendChild(aboutElm);
 				}
 			});
-		});
+		}
 		
 		// display download link 
-		LightBox.extend(function (LB) {
-			var b = LB.helpers;
-			b.extend(LB.defaults, {
+		function LBDownloadPlugin(obj, helpers) {
+			obj.conf = helpers.inject({
 				'downloadCls': 'LBdownload',
 				'downloadHTML': 'Download',
 				'textModifierCls': 'withText',
 				'downloadModCls': 'withDownload'
-			});
-			LB.events.on('afterSetupContent', function (ev, inst) {
-				var conf = inst.conf,
+			}, obj.conf);
+			obj.on('afterSetupContent', function (ev) {
+				var inst = this,
+					conf = inst.conf,
 					contentElm = inst.content.getElementsByClassName(conf.contentCls)[0],
 					downloadElm = document.createElement('a'),
 					link = inst.links[inst.selectedIndex],
 					dataset = link.dataset,
 					href = dataset && dataset.download || link.href;
-				b.addClass(contentElm, conf.textModifierCls);
-				b.addClass(contentElm, conf.downloadModCls);
-				b.extend(downloadElm, {
+				helpers.addClass(contentElm, conf.textModifierCls);
+				helpers.addClass(contentElm, conf.downloadModCls);
+				helpers.extend(downloadElm, {
 					className: conf.downloadCls,
 					href: href,
 					target: '_blank',
@@ -527,12 +542,11 @@
 				})
 				contentElm.appendChild(downloadElm);
 			});
-		});
+		}
 		
 		// keyboard next/previous controls 
-		LightBox.extend(function (LB) {
-			var b = LB.helpers,
-				doc = document;
+		function LBKeyboardNav(obj, helpers) {
+			var doc = document;
 			function nextPrevious(ev) {
 				var indexDiff = ev.keyCode === 39 && 1 || ev.keyCode === 37 && -1 || 0,
 					len;
@@ -542,46 +556,53 @@
 					this.setupContent();
 				}
 			}
-			LB.events.on('afterClose', function (ev, inst) {
-				if (inst.thumbs.length) {
-					b.off(doc, 'keyup', nextPrevious);
+			obj.on('afterClose', function (ev) {
+				if (this.thumbs.length) {
+					helpers.off(doc, 'keyup', nextPrevious);
 				}
 			});
-			LB.events.on('afterOpen', function (ev, inst) {
-				if (inst.thumbs.length) {
-					b.on(doc, 'keyup', nextPrevious, inst);
+			obj.on('afterOpen', function (ev) {
+				if (this.thumbs.length) {
+					helpers.on(doc, 'keyup', nextPrevious, this);
 				}
 			});
-		});
+		}
 		
 		// display close link up top
-		LightBox.extend(function (LB) {
-			var b = LB.helpers;
-			b.extend(LB.defaults, {
+		function LBCloseButton(obj, helpers) {
+			obj.conf = helpers.inject({
 				'closeCls': 'LBclose',
 				'closeHTML': 'Close'
-			});
+			}, obj.conf);
 			function close (ev) {
 				this.close();
 			}
-			LB.events.on('afterSetupContent', function (ev, inst) {
-				var conf = inst.conf,
+			obj.on('afterSetupContent', function (ev) {
+				var inst = this,
+					conf = inst.conf,
 					wrapperElm = inst.content,
 					closeElm = document.createElement('a');
-				b.extend(closeElm, {
+				helpers.extend(closeElm, {
 					className: conf.closeCls,
 					innerHTML: conf.closeHTML
 				});
 				wrapperElm.appendChild(closeElm);
-				b.on(closeElm, 'click', close, inst);
+				helpers.on(closeElm, 'click', close, inst);
 			});
-		});
+		}
+
+		LightBox.extend(LBCleanerPlugin);
+		LightBox.extend(LBDownloadPlugin);
+		LightBox.extend(LBEscapeClosePlugin);
 		
-		LightBox(document.querySelectorAll(".lb img"));
-		/*var list = document.querySelectorAll(".lb img"),
-			i = 0, j = 0;
-		for (j = list.length; i < j; i++) {
-			LightBox([list[i]]);
-		}*/
+		lb1 = LightBox(document.querySelectorAll(".list1 .lb img"), {
+			'downloadModCls': 'withShortDownload',
+			'downloadHTML': '&#8595;'
+		});
+		lb1.extend(LBDisplayTitlePlugin);
+		lb1.extend(LBKeyboardNav);
+		lb1.extend(LBCloseButton);
+		
+		lb2 = LightBox(document.querySelectorAll(".list2 .lb img"));
 	</script>
 </html>

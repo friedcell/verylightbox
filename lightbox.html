@@ -33,6 +33,11 @@
 				-moz-border-radius:2px;-moz-box-shadow:0 0 1px #000;
 				border-radius:2px;box-shadow:0 0 1px #000;
 			}
+			.LBwrapper .LBclose {position:absolute;z-index:10;right:5px;top:5px;display:block;padding:.25em .5em;background:#fff;color:#222;text-decoration:none;text-transform:uppercase;font-weight:bold;font-size:.625em;line-height:1.5;cursor:pointer;
+				-webkit-border-radius:2px;-webkit-box-shadow:0 0 1px #000;
+				-moz-border-radius:2px;-moz-box-shadow:0 0 1px #000;
+				border-radius:2px;box-shadow:0 0 1px #000;
+			}
 		</style>
 	</head>
 	<body>
@@ -75,141 +80,229 @@
 	</body>
 	<script>
 		/**
-		 * ID provides an object that gives out unique ids to DOM elements and indexes them
+		 * LightBox object
 		 **/
-		/*var ID = function (root) {
-			var idMap = {},
-				seed = 0,
-				supportsDataset = (function () {
-					var el = document.createElement('div');
-					return !!el.dataset;
-				}()),
-				gen = function () {
-					return root + "-" + (++seed);
-				},
-				getData = function (el, prop, def) {
-					return supportsDataset && el.dataset && el.dataset[prop] || def;
-				},
-				p = {
-					'get': function (el, generate) {
-						var r = el.id || getData(el, 'id'),
-							k;
-						// if element doesn't have an id attached, try to find it in the index
-						if (!r && (!supportsDataset || !el.dataset)) {
-							for (k in idMap) {
-								if (idMap[k] === el) {
-									r = k;
-								}
-							}
-						}
-						if (!r && generate) {
-							r = gen();
-							if (supportsDataset && el.dataset) {
-								el.dataset.id = r;
-							}
-							idMap[r] = el;
-						}
-						return r;
-					},
-					'fetch': function (id) {
-						return idMap[id];
-					},
-					'debug': function () {
-						return [root, seed, supportsDataset, gen, idMap, p];
+		var LightBox = (function () {
+			var doc = document,
+				LB = function (thumbs, conf) {
+					var i;
+					if (this === window) {
+						i = new LB(thumbs, conf);
+						LB.instances.push(i);
+						return i;
 					}
-				};
-			return p;
-		};*/
-		/**
-		 * Events provides an object that handles events
-		 **/
-		/*var Events = (function () {
-			function typesplit(s) {
-				var l = s.indexOf('.') > 0 ? s.split('.') : [s, ''];
-				return {'type': l.shift(), 'ns': l.join('.')};
-			}
-			var idGen = ID('events'),
-				handlers = {},
-				p = {
-					'on': function (el, type, handler, scope) {
-						type = typesplit(type);
-						var id = idGen.get(el, true),
-							d = {
-								id: idGen.get(el, true),
-								el: el,
-								type: type.type,
-								ns: type.ns,
-								handler: handler,
-								proxy: function () {
-									handler.apply(scope, arguments);
-								},
-								start: (new Date).getTime()
-							};
-						if (!handlers[id]) {
-							handlers[id] = {};
+					b.extend(this, {
+						'conf': b.inject(LB.conf, conf),
+						'thumbs': thumbs,
+						'links': [],
+						'selectedIndex': -1,
+						'content': null,
+						'state': 0,
+						'extend': function (fn) {
+							b.extend(this, fn(this, b));
 						}
-						if (!handlers[id][type.type]) {
-							handlers[id][type.type] = [];
-						}
-						handlers[id][type.type].push(d);
-						if (el.nodeType === 1) {
-							el.addEventListener(type.type, d.proxy);
-						}
-						return p;
+					});
+					for (i = this.thumbs.length - 1; i >= 0; i -= 1) {
+						this.links[i] = this.setupLink(i);
+					}
+					e.afterInit.call(this);
+				},
+				nofun = function () {},
+				b = {
+					'append': function (wr, el) {
+						wr.appendChild(el);
+						return wr;
+					},
+					'detach': function (el) {
+						el.parentNode && el.parentNode.removeChild(el);
+						return el;
+					},
+					'on': function (el, type, handler, scope, addArgs) {
+						handler.__handler__ = function () {
+							var args = Array.prototype.slice.call(arguments);
+							args = args.concat(addArgs || []);
+							handler.apply(scope || this, args);
+						};
+						el.addEventListener(type, handler.__handler__, false);
+						return el;
 					},
 					'off': function (el, type, handler) {
-						var id = idGen.get(el),
-							dtype = typesplit(type),
-							h, i, j, n,
-							r = [];
-						if (!id) {
-							return p;
-						}
-						h = handlers[id][dtype.type] || [];
-						for (i = 0, j = h.length; i < j; i++) {
-							n = h[i];
-							if ((dtype.ns && n.ns === dtype.ns || !dtype.ns) && (handler && n.handler === handler || !handler)) {
-								if (el.nodeType === 1) {
-									el.removeEventListener(dtype.type, h[i].proxy);
-								}
-							} else {
-								r.push(n);
+						console.log('detaching handler', type, !!handler.__handler__);
+						el.removeEventListener(type, handler.__handler__)
+						return el;
+					},
+					'hasClass': function (el, cls) {
+						var c = ' ' + el.className + ' ';
+						return c.indexOf(' ' + cls + ' ') >= 0;
+					},
+					'addClass': function (el, cls) {
+						var c
+						if (!b.hasClass(el, cls)) {
+							c = el.className + ' ' + cls;
+							while (c.indexOf('  ') >= 0) {
+								c = c.replace(/  /g, ' ');
 							}
-						}
-						if (r.length) {
-							handlers[id][dtype.type] = r;
-						} else {
-							delete handlers[id][dtype.type];
+							el.className = c;
 						}
 					},
-					'trigger': function (el, type, data) {
-						if (el.nodeType === 1 && el.type) {
-							el[type]();
-							// how do you trigger custom event types? surely not manually?!
-						} else {
-							var id = idGen.get(el), 
-								dtype = typesplit(type),
-								h, i, j, n;
-							if (!id) {
-								return p;
-							}
-							h = handlers[id][dtype.type] || [];
-							for (i = 0, j = h.length; i < j; i++) {
-								n = h[i];
-								n.proxy(data);
-							}
+					'extend': function (destObj, sourceObj) {
+						for (key in sourceObj) {
+							destObj[key] = sourceObj[key];
 						}
+						return destObj;
 					},
-					'gc': function () {
-						// remove all nodes with no parent
-						// no idea how to make sure we don't lean objects though....	
+					'repaint': function (el) {
+						var d = el.style.display;
+						el.style.display = 'none';
+						el.parentNode.offsetWidth;
+						el.style.display = d;
 					},
-					'debug': function () {
-						return [idGen, handlers, p];
+					'inject': function (defaults, obj) {
+						return b.extend(b.extend({}, defaults), obj);
 					}
-				};
-			return p;
-		}());*/
+				},
+				e = {
+					'linkClick': function (ev, idx) {
+						ev.preventDefault();
+						if (idx !== this.selectedIndex) {
+							this.selectedIndex = idx;
+							this.setupContent();
+						}
+						this.open();
+					},
+					'wrapperClick': function (ev) {
+						var target = ev.target;
+						if (b.hasClass(target, this.conf.wrapperCls)) {
+							this.close();
+						}
+					},
+					'imageLoad': function (ev) {
+						var img = this.content.getElementsByClassName(this.conf.objectCls)[0];
+						b.repaint(this.content);
+					},
+					'afterInit': nofun,
+					'afterSetupContent': nofun,
+					'afterOpen': nofun,
+					'afterClose': nofun,
+					'afterShowContent': nofun,
+					'afterHideContent': nofun
+				}
+			b.extend(LB, {
+				"instances": [],
+				"conf": {
+					wrapperCls: 'LBwrapper',
+					contentCls: 'LBcontent',
+					objectCls: 'LBobject'
+				},
+				"handlers": e,
+				"helpers": b
+			});
+			//b.extend(LB, CustEv());
+			
+			b.extend(LB.prototype, {
+				/**
+				 * Sets up and returns the link that handles the LightBox events
+				 **/
+				setupLink: function (idx) {
+					var link = this.thumbs[idx].parentNode;
+					b.on(link, 'click', e.linkClick, this, [idx]);
+					return link;
+				},
+				/**
+				 * Should produce the HTML of the enlarged content & append it to the doc
+				 **/
+				setupContent: function () {
+					var i = this.selectedIndex,
+						// elements
+						wrapper = this.content || doc.createElement('div'),
+						content = doc.createElement('div'),
+						img = doc.createElement('img'),
+						// data
+						link = this.links[i],
+						thumb = this.thumbs[i],
+						src = link.dataset && link.dataset.big || link.href,
+						title = thumb.title || '',
+						alt = thumb.alt || '';
+					b.extend(wrapper, {
+						className: this.conf.wrapperCls,
+						innerHTML: '' // clean up the content
+					});
+					b.on(wrapper, 'click', e.wrapperClick, this);
+					content.className = this.conf.contentCls;
+					b.on(img, 'load', e.imageLoad, this);
+					b.extend(img, {
+						'className': this.conf.objectCls,
+						'src': src,
+						'title': title,
+						'alt': alt
+					});
+					b.append(content, img);
+					this.content = b.append(wrapper, content);
+					e.afterSetupContent.call(this);
+				},
+				/**
+				 * Called when you want the lightbox to open
+				 **/
+				open: function () {
+					this.showContent();
+					this.state = 1;
+					e.afterOpen.call(this);
+				},
+				/**
+				 * Called when you want the lightbox to close
+				 **/
+				close: function () {
+					this.hideContent();
+					this.state = 0;
+					e.afterClose.call(this);
+				},
+				/**
+				 * Should show the content or set it up if it's not present
+				 **/
+				showContent: function () {
+					if (!this.content) {
+						this.setupContent();
+					}
+					b.append(doc.body, this.content);
+					e.afterShowContent.call(this);
+				},
+				/**
+				 * Should hide the elarged content
+				 **/
+				hideContent: function () {
+					b.detach(this.content);
+					e.afterHideContent.call(this);
+				}
+			});
+			
+			LB.extend = function (fn) {
+				b.extend(LB.prototype, fn(LB, LB.helpers) || {});
+			}
+			
+			return LB;
+		}());
+
+		// add cleaner
+		function LBCleanerPlugin(obj, helpers) {
+			if (!obj.prototype) { // only apply to constructor, not instance
+				return;
+			}
+			obj.clean = function () {
+				var i = 0, j = obj.instances.length, o;
+				for (; i < j; i++) {
+					o = obj.instances[i];
+					if (o.state) {
+						o.close();
+					}
+					b.off(o.link, 'click', e.linkClick);
+					o.thumbs = null;
+					o.links = null;
+					o.content = null;
+				}
+				obj.instances = [];
+			};
+		}
+		
 		/**
 		 * Simple events
 		 **/
@@ -264,231 +357,31 @@
 				};
 			}
 		}());
-		/**
-		 * LightBox object
-		 **/
-		var LightBox = (function () {
-			var doc = document,
-				LB = function (thumbs, conf) {
-					var i;
-					if (this === window) {
-						i = new LB(thumbs, conf);
-						LB.instances.push(i);
-						return i;
+		function LBEventsPlugin(obj, helpers) {
+			helpers.extend(obj, CustEv());
+			var a = ['afterSetupContent', 'afterOpen', 'afterClose'],
+				v;
+			while (a.length) {
+				(function (v) {
+					obj.handlers[v] = function () {
+						obj.fire.call(this, v);
+						this.fire(v);
 					}
-					b.extend(this, {
-						'conf': b.inject(LB.conf, conf),
-						'thumbs': thumbs,
-						'links': [],
-						'selectedIndex': -1,
-						'content': null,
-						'state': 0,
-						'extend': function (fn) {
-							b.extend(this, fn(this, b));
-						}
-					});
-					b.extend(this, CustEv(this));
-					for (i = this.thumbs.length - 1; i >= 0; i -= 1) {
-						this.links[i] = this.setupLink(i);
-					}
-				},
-				b = {
-					'append': function (wr, el) {
-						wr.appendChild(el);
-						return wr;
-					},
-					'detach': function (el) {
-						el.parentNode && el.parentNode.removeChild(el);
-						return el;
-					},
-					'on': function (el, type, handler, scope, addArgs) {
-						handler.__handler__ = function () {
-							var args = Array.prototype.slice.call(arguments);
-							args = args.concat(addArgs || []);
-							handler.apply(scope || this, args);
-						};
-						el.addEventListener(type, handler.__handler__, false);
-						return el;
-					},
-					'off': function (el, type, handler) {
-						el.removeEventListener(type, handler.__handler__)
-						return el;
-					},
-					'hasClass': function (el, cls) {
-						var c = ' ' + el.className + ' ';
-						return c.indexOf(' ' + cls + ' ') >= 0;
-					},
-					'addClass': function (el, cls) {
-						var c
-						if (!b.hasClass(el, cls)) {
-							c = el.className + ' ' + cls;
-							while (c.indexOf('  ') >= 0) {
-								c = c.replace(/  /g, ' ');
-							}
-							el.className = c;
-						}
-					},
-					'extend': function (destObj, sourceObj) {
-						for (key in sourceObj) {
-							destObj[key] = sourceObj[key];
-						}
-						return destObj;
-					},
-					'repaint': function (el) {
-						var d = el.style.display;
-						el.style.display = 'none';
-						el.parentNode.offsetWidth;
-						el.style.display = d;
-					},
-					'inject': function (defaults, obj) {
-						return b.extend(b.extend({}, defaults), obj);
-					}
-				},
-				e = {
-					'linkClick': function (ev, idx) {
-						ev.preventDefault();
-						if (idx !== this.selectedIndex) {
-							this.selectedIndex = idx;
-							this.setupContent();
-						}
-						this.open();
-					},
-					'wrapperClick': function (ev) {
-						var target = ev.target;
-						if (b.hasClass(target, this.conf.wrapperCls)) {
-							this.close();
-						}
-					},
-					'imageLoad': function (ev) {
-						var img = this.content.getElementsByClassName(this.conf.objectCls)[0];
-						b.repaint(this.content);
-					}
-				}
-			b.extend(LB, {
-				"instances": [],
-				"conf": {
-					wrapperCls: 'LBwrapper',
-					contentCls: 'LBcontent',
-					objectCls: 'LBobject'
-				},
-				"handlers": e,
-				"helpers": b
-			});
-			b.extend(LB, CustEv());
-			
-			b.extend(LB.prototype, {
-				/**
-				 * Sets up and returns the link that handles the LightBox events
-				 **/
-				setupLink: function (idx) {
-					var link = this.thumbs[idx].parentNode;
-					b.on(link, 'click', e.linkClick, this, [idx]);
-					return link;
-				},
-				/**
-				 * Should produce the HTML of the enlarged content & append it to the doc
-				 **/
-				setupContent: function () {
-					var i = this.selectedIndex,
-						// elements
-						wrapper = this.content || doc.createElement('div'),
-						content = doc.createElement('div'),
-						img = doc.createElement('img'),
-						// data
-						link = this.links[i],
-						thumb = this.thumbs[i],
-						src = link.dataset && link.dataset.big || link.href,
-						title = thumb.title || '',
-						alt = thumb.alt || '';
-					b.extend(wrapper, {
-						className: this.conf.wrapperCls,
-						innerHTML: '' // clean up the content
-					});
-					b.on(wrapper, 'click', e.wrapperClick, this);
-					content.className = this.conf.contentCls;
-					b.on(img, 'load', e.imageLoad, this);
-					b.extend(img, {
-						'className': this.conf.objectCls,
-						'src': src,
-						'title': title,
-						'alt': alt
-					});
-					b.append(content, img);
-					this.content = b.append(wrapper, content);
-					LB.fire.call(this, 'afterSetupContent');
-					this.fire('afterSetupContent');
-				},
-				/**
-				 * Called when you want the lightbox to open
-				 **/
-				open: function () {
-					this.showContent();
-					this.state = 1;
-					LB.fire.call(this, 'afterOpen');
-					this.fire('afterOpen');
-				},
-				/**
-				 * Called when you want the lightbox to close
-				 **/
-				close: function () {
-					this.hideContent();
-					this.state = 0;
-					LB.fire.call(this, 'afterClose');
-					this.fire('afterClose');
-				},
-				/**
-				 * Should show the content or set it up if it's not present
-				 **/
-				showContent: function () {
-					if (!this.content) {
-						this.setupContent();
-					}
-					b.append(doc.body, this.content);
-				},
-				/**
-				 * Should hide the elarged content
-				 **/
-				hideContent: function () {
-					b.detach(this.content);
-				}
-			});
-			
-			LB.extend = function (fn) {
-				b.extend(LB.prototype, fn(LB, LB.helpers) || {});
+				}(a.shift()));
 			}
-			
-			return LB;
-		}());
-
-		// add cleaner
-		function LBCleanerPlugin(obj, helpers) {
-			if (!obj.prototype) { // only apply to constructor, not instance
-				return;
+			obj.handlers.afterInit = function () {
+				helpers.extend(this, CustEv());
 			}
-			obj.clean = function () {
-				var i = 0, j = obj.instances.length, o;
-				for (; i < j; i++) {
-					o = obj.instances[i];
-					if (o.state) {
-						o.close();
-					}
-					b.off(o.link, 'click', e.linkClick);
-					o.thumbs = null;
-					o.links = null;
-					o.content = null;
-				}
-				obj.instances = [];
-			};
 		}
 		
 		// add keyboard events to close when Esc is pressed
 		function LBEscapeClosePlugin(obj, helpers) {
-			var doc = document;
 			function escape(ev) {
 				if (ev.keyCode === 27) {
 					this.close();
 				}
 			}
+			var doc = document;
 			obj.on('afterClose', function (ev) {
 				helpers.off(doc, 'keyup', escape);
 			});
@@ -604,6 +497,7 @@
 		}
 
 		LightBox.extend(LBCleanerPlugin);
+		LightBox.extend(LBEventsPlugin);
 		LightBox.extend(LBDownloadPlugin);
 		LightBox.extend(LBEscapeClosePlugin);
 		

@@ -84,60 +84,112 @@
 		 **/
 		var LightBox = (function () {
 			var doc = document,
-				LB = function (thumbs, conf) {
-					var i;
-					if (this === window) {
-						i = new LB(thumbs, conf);
-						LB.instances.push(i);
-						return i;
-					}
-					b.extend(this, {
-						'conf': b.inject(LB.conf, conf),
-						'thumbs': thumbs,
-						'links': [],
-						'selectedIndex': -1,
-						'content': null,
-						'state': 0,
-						'extend': function (fn) {
-							b.extend(this, fn(this, b));
-						}
-					});
-					for (i = this.thumbs.length - 1; i >= 0; i -= 1) {
-						this.links[i] = this.setupLink(i);
-					}
-					e.afterInit.call(this);
-				},
 				nofun = function () {},
-				b = {
-					'append': function (wr, el) {
-						wr.appendChild(el);
-						return wr;
+				helpers = {
+					'__ids__': {},
+					'id': function () {
+						do {
+							id = (new Date()).getTime() + (Math.random() + '').substr(2, 6);
+						} while (helpers.__ids__[id]);
+						return id;
 					},
+					'addHandler': function (el, type, handler, id) {
+						var elid = (el == doc && 'document') || el.dataset.id || (el.dataset.id = helpers.id()),
+							hid = handler.__id__ || (handler.__id__ = helpers.id()),
+							handlersIndex = LB.__eh__,
+							c = "__count__";
+						if (!handlersIndex[elid]) {
+							handlersIndex[elid] = {};
+							handlersIndex[elid][c] = 1;
+						} else {
+							handlersIndex[elid][c] += 1;
+						}
+						if (!handlersIndex[elid][type]) {
+							handlersIndex[elid][type] = {};
+							handlersIndex[elid][type][c] = 1;
+						} else {
+							handlersIndex[elid][type][c] += 1;
+						}
+						if (!handlersIndex[elid][type][hid]) {
+							handlersIndex[elid][type][hid] = [];
+						}
+						handlersIndex[elid][type][hid].push(id);
+					},
+					'remHandler': function (el, type, handler) {
+						var elid = (el == doc && 'document') || el.dataset.id,
+							hid = handler.__id__,
+							handlersIndex = LB.__eh__,
+							r = [];
+						if (handlersIndex[elid] && handlersIndex[elid][type] && handlersIndex[elid][type][hid]) {
+							r = handlersIndex[elid][type][hid];
+							delete handlersIndex[elid][type][hid];
+							if (handlersIndex[elid][type].__count__ > 1) {
+								handlersIndex[elid][type].__count__ -= 1;
+							} else {
+								delete handlersIndex[elid][type];
+								if (handlersIndex[elid].__count__ > 1) {
+									handlersIndex[elid] -= 1;
+								} else {
+									delete handlersIndex[elid];
+								}
+							}
+						}
+						return r;
+					},
+					'nofun': nofun,
+					/**
+					 * Shortcut to append child
+					 **/
+					'append': function (wrapper, el) {
+						wrapper.appendChild(el);
+						return wrapper;
+					},
+					/**
+					 * Shortcut to remove child from its parent
+					 **/
 					'detach': function (el) {
 						el.parentNode && el.parentNode.removeChild(el);
 						return el;
 					},
+					/**
+					 * Attach event handler, standards only
+					 **/
 					'on': function (el, type, handler, scope, addArgs) {
-						handler.__handler__ = function () {
-							var args = Array.prototype.slice.call(arguments);
-							args = args.concat(addArgs || []);
-							handler.apply(scope || this, args);
-						};
-						el.addEventListener(type, handler.__handler__, false);
+						var hid = helpers.id(),
+							fn = function () {
+								handler.apply(
+									scope || this, 
+									Array.prototype.slice.call(arguments).concat(addArgs || [])
+								);
+							};
+						handler["__h" + hid + "__"] = fn;
+						el.addEventListener(type, fn, false);
+						helpers.addHandler(el, type, handler, hid);
 						return el;
 					},
+					/**
+					 * Detach event handler, standards only
+					 **/
 					'off': function (el, type, handler) {
-						console.log('detaching handler', type, !!handler.__handler__);
-						el.removeEventListener(type, handler.__handler__)
+						var handlers = helpers.remHandler(el, type, handler);
+						while (handlers.length) {
+							el.removeEventListener(type, handler["__h" + handlers.pop() + "__"]);	
+						}
 						return el;
 					},
+					/**
+					 * Does an element have a class
+					 **/
 					'hasClass': function (el, cls) {
 						var c = ' ' + el.className + ' ';
 						return c.indexOf(' ' + cls + ' ') >= 0;
 					},
+					/**
+					 * Add a class
+					 **/
 					'addClass': function (el, cls) {
 						var c
-						if (!b.hasClass(el, cls)) {
+						if (!helpers.hasClass(el, cls)) {
 							c = el.className + ' ' + cls;
 							while (c.indexOf('  ') >= 0) {
 								c = c.replace(/  /g, ' ');
@@ -145,24 +197,36 @@
 							el.className = c;
 						}
 					},
+					/**
+					 * Extend an object with another object
+					 **/
 					'extend': function (destObj, sourceObj) {
 						for (key in sourceObj) {
 							destObj[key] = sourceObj[key];
 						}
 						return destObj;
 					},
+					/**
+					 * Force a repaint on an element
+					 **/
 					'repaint': function (el) {
 						var d = el.style.display;
 						el.style.display = 'none';
 						el.parentNode.offsetWidth;
 						el.style.display = d;
 					},
+					/**
+					 * Inject defaults in an object. If object already has same property it will override defaults.
+					 **/
 					'inject': function (defaults, obj) {
-						return b.extend(b.extend({}, defaults), obj);
+						return helpers.extend(helpers.extend({}, defaults), obj);
 					}
 				},
-				e = {
-					'linkClick': function (ev, idx) {
+				/**
+				 * Event handlers called from LB functions
+				 **/
+				eventHandlers = {
+					'linkClick': function linkClick(ev, idx) {
 						ev.preventDefault();
 						if (idx !== this.selectedIndex) {
 							this.selectedIndex = idx;
@@ -170,136 +234,209 @@
 						}
 						this.open();
 					},
-					'wrapperClick': function (ev) {
+					'wrapperClick': function wrapperClick(ev) {
 						var target = ev.target;
-						if (b.hasClass(target, this.conf.wrapperCls)) {
+						if (helpers.hasClass(target, this.conf.wrapperCls)) {
 							this.close();
 						}
 					},
-					'imageLoad': function (ev) {
+					'imageLoad': function imageLoad(ev) {
 						var img = this.content.getElementsByClassName(this.conf.objectCls)[0];
-						b.repaint(this.content);
+						helpers.off(img, 'load', eventHandlers.imageLoad);
+						helpers.repaint(this.content);
 					},
 					'afterInit': nofun,
 					'afterSetupContent': nofun,
 					'afterOpen': nofun,
 					'afterClose': nofun,
 					'afterShowContent': nofun,
-					'afterHideContent': nofun
-				}
-			b.extend(LB, {
-				"instances": [],
-				"conf": {
+					'afterHideContent': nofun,
+					'beforeSwitchContent': nofun
+				},
+				/**
+				 * LightBox constructor
+				 **/
+				LB = function (thumbs, conf) {
+					var inst = this, i;
+					if (inst === window) { // create a new instance
+						i = new LB(thumbs, conf);
+						LB.instances.push(i);
+						return i;
+					}
+					/**
+					 * Instance properties
+					 **/
+					helpers.extend(inst, {
+						/**
+						 * Configuration object
+						 **/
+						'conf': helpers.inject(LB.conf, conf),
+						/**
+						 * Array like element of thumbs (depending on what is passed)
+						 **/
+						'thumbs': thumbs,
+						/**
+						 * Array of links, index matched to thumbs
+						 **/
+						'links': [],
+						/**
+						 * Index of current content in thumbs array
+						 **/
+						'selectedIndex': -1,
+						/**
+						 * Link to overlay wrapper with current content
+						 **/
+						'content': null,
+						/**
+						 * Current LB state: 0 = closed, 1 = open
+						 **/
+						'state': 0,
+						/**
+						 * Overrides constructor extend to allow extending instances
+						 * Make sure helpers are protected from leaking to contructor/other instances
+						 **/
+						'extend': function (fn) {
+							helpers.extend(inst, fn(inst, helpers.extend({}, helpers)) || {});
+						}
+					});
+					for (i = inst.thumbs.length - 1; i >= 0; i -= 1) {
+						inst.links[i] = inst.setupLink(i);
+					}
+					eventHandlers.afterInit.call(inst);
+				};
+			/**
+			 * Extend LB constructor
+			 **/
+			helpers.extend(LB, {
+				'instances': [],
+				'conf': {
 					wrapperCls: 'LBwrapper',
 					contentCls: 'LBcontent',
 					objectCls: 'LBobject'
 				},
-				"handlers": e,
-				"helpers": b
+				'handlers': eventHandlers,
+				'helpers': helpers,
+				'extend': function (fn) {
+					helpers.extend(LB.prototype, fn(LB, LB.helpers) || {});
+				},
+				'__eh__': {}
 			});
-			//b.extend(LB, CustEv());
-			
-			b.extend(LB.prototype, {
+			/**
+			 * Optimization: where this is used more than twice, use local variable.
+			 **/
+			helpers.extend(LB.prototype, {
 				/**
 				 * Sets up and returns the link that handles the LightBox events
 				 **/
 				setupLink: function (idx) {
-					var link = this.thumbs[idx].parentNode;
-					b.on(link, 'click', e.linkClick, this, [idx]);
-					return link;
+					return helpers.on(this.thumbs[idx].parentNode, 'click', eventHandlers.linkClick, this, [idx]);
 				},
 				/**
 				 * Should produce the HTML of the enlarged content & append it to the doc
 				 **/
 				setupContent: function () {
+					var inst = this;
+					if (inst.content) {
+						eventHandlers.beforeSwitchContent.call(inst);
+					}
 					var i = this.selectedIndex,
 						// elements
-						wrapper = this.content || doc.createElement('div'),
+						wrapper = inst.content || doc.createElement('div'),
 						content = doc.createElement('div'),
 						img = doc.createElement('img'),
 						// data
-						link = this.links[i],
-						thumb = this.thumbs[i],
+						link = inst.links[i],
+						thumb = inst.thumbs[i],
 						src = link.dataset && link.dataset.big || link.href,
 						title = thumb.title || '',
 						alt = thumb.alt || '';
-					b.extend(wrapper, {
-						className: this.conf.wrapperCls,
-						innerHTML: '' // clean up the content
+					helpers.extend(wrapper, {
+						className: inst.conf.wrapperCls,
+						innerHTML: '' // empty the wrapper
 					});
-					b.on(wrapper, 'click', e.wrapperClick, this);
-					content.className = this.conf.contentCls;
-					b.on(img, 'load', e.imageLoad, this);
-					b.extend(img, {
-						'className': this.conf.objectCls,
+					if (!inst.content) { // only add this the first time around
+						helpers.on(wrapper, 'click', eventHandlers.wrapperClick, inst);
+					}
+					content.className = inst.conf.contentCls;
+					helpers.on(img, 'load', eventHandlers.imageLoad, inst);
+					helpers.extend(img, {
+						'className': inst.conf.objectCls,
 						'src': src,
 						'title': title,
 						'alt': alt
 					});
-					b.append(content, img);
-					this.content = b.append(wrapper, content);
-					e.afterSetupContent.call(this);
+					helpers.append(content, img);
+					inst.content = helpers.append(wrapper, content);
+					eventHandlers.afterSetupContent.call(inst);
 				},
 				/**
 				 * Called when you want the lightbox to open
 				 **/
 				open: function () {
-					this.showContent();
-					this.state = 1;
-					e.afterOpen.call(this);
+					var inst = this;
+					inst.showContent();
+					inst.state = 1;
+					eventHandlers.afterOpen.call(inst);
 				},
 				/**
 				 * Called when you want the lightbox to close
 				 **/
 				close: function () {
-					this.hideContent();
-					this.state = 0;
-					e.afterClose.call(this);
+					var inst = this;
+					inst.hideContent();
+					inst.state = 0;
+					eventHandlers.afterClose.call(inst);
 				},
 				/**
 				 * Should show the content or set it up if it's not present
 				 **/
 				showContent: function () {
-					if (!this.content) {
-						this.setupContent();
+					var inst = this;
+					if (!inst.content) {
+						inst.setupContent();
 					}
-					b.append(doc.body, this.content);
-					e.afterShowContent.call(this);
+					helpers.append(doc.body, inst.content);
+					eventHandlers.afterShowContent.call(inst);
 				},
 				/**
 				 * Should hide the elarged content
 				 **/
 				hideContent: function () {
-					b.detach(this.content);
-					e.afterHideContent.call(this);
+					helpers.detach(this.content);
+					eventHandlers.afterHideContent.call(this);
 				}
 			});
-			
-			LB.extend = function (fn) {
-				b.extend(LB.prototype, fn(LB, LB.helpers) || {});
-			}
 			
 			return LB;
 		}());
 
-		// add cleaner
+		/**
+		 * Clean internal data on LightBox if needed
+		 * TODO: fix so that events on existing still work
+		 **/
 		function LBCleanerPlugin(obj, helpers) {
-			if (!obj.prototype) { // only apply to constructor, not instance
-				return;
+			obj = obj.prototype ? obj : obj.constructor;
+			obj.prototype.clean = function () {
+				var inst = this, i, j;
+				if (inst.state) {
+					inst.close();
+				}
+				for (i = 0, j = inst.links.length; i < j; i += 1) {
+					if (inst.links[i]) {
+						helpers.off(inst.links[i], 'click', obj.handlers.linkClick);
+					}
+				}
+				if (inst.content) {
+					helpers.off(inst.content, 'click', obj.handlers.wrapperClick);
+				}
+				inst.thumbs = [];
+				inst.links = [];
+				inst.content = null;
 			}
 			obj.clean = function () {
-				var i = 0, j = obj.instances.length, o;
-				for (; i < j; i++) {
-					o = obj.instances[i];
-					if (o.state) {
-						o.close();
-					}
-					b.off(o.link, 'click', e.linkClick);
-					o.thumbs = null;
-					o.links = null;
-					o.content = null;
+				while (obj.instances.length) {
+					obj.instances.pop().clean();
 				}
-				obj.instances = [];
 			};
 		}
 		
@@ -327,15 +464,19 @@
 						if (!handler) {
 							return !!(store[type] = []);
 						}
-						var handlers = store[type],
-							i = handlers && handlers.length || -1;
-						for (; i >= 0; i -= 1) {
-							if (handlers[i][0] === handler) {
-								handlers.splice(i, 1);
-								return true;
+						var left = [],
+							handlers = store[type],
+							r = false,
+							i, j;
+						for (i = 0, j = handlers.length; i < j; i += 1) {
+							if (handlers[i][0] !== handler) {
+								left.push(handlers[i]);
+							} else {
+								r = true;
 							}
 						}
-						return false;
+						store[type] = left;
+						return r;
 					},
 					'fire': function (type, data) {
 						var i = 0,
@@ -358,30 +499,39 @@
 			}
 		}());
 		function LBEventsPlugin(obj, helpers) {
-			helpers.extend(obj, CustEv());
-			var a = ['afterSetupContent', 'afterOpen', 'afterClose'],
-				v;
-			while (a.length) {
-				(function (v) {
-					obj.handlers[v] = function () {
-						obj.fire.call(this, v);
-						this.fire(v);
-					}
-				}(a.shift()));
+			// TODO: figure out:
+			// - if this allows us to have two lightboxes with different plugins
+			// - does reinit of events plugin reset all constructor plugins
+			// - does reinit of events plugin reset all instance plugins
+			obj = obj.prototype ? obj : obj.constructor;
+			helpers.extend(obj, CustEv()); // extend constructor
+			var eventName;
+			function handler(eventName, inConstructor) {
+				return function () {
+					// fire handlers from constructor
+					obj.fire.call(this, eventName);
+					// fire handlers from instance
+					this.fire(eventName);
+				}
 			}
-			obj.handlers.afterInit = function () {
+			for (eventName in obj.handlers) {
+				if (obj.handlers[eventName] === helpers.nofun) {
+					obj.handlers[eventName] = handler(eventName, inConstructor);
+				}
+			}
+			obj.on('afterInit', function () { // extend instances
 				helpers.extend(this, CustEv());
-			}
+			});
 		}
 		
 		// add keyboard events to close when Esc is pressed
 		function LBEscapeClosePlugin(obj, helpers) {
+			var doc = document;
 			function escape(ev) {
 				if (ev.keyCode === 27) {
 					this.close();
 				}
 			}
-			var doc = document;
 			obj.on('afterClose', function (ev) {
 				helpers.off(doc, 'keyup', escape);
 			});
@@ -453,14 +603,18 @@
 		function LBKeyboardNav(obj, helpers) {
 			var doc = document;
 			function nextPrevious(ev) {
-				var indexDiff = ev.keyCode === 39 && 1 || ev.keyCode === 37 && -1 || 0,
-					len;
-				if (indexDiff) {
-					len = this.thumbs.length;
-					this.selectedIndex = (this.selectedIndex + indexDiff + len) % len;
-					this.setupContent();
+				var inst = this,
+					indexDiff = ev.keyCode === 39 && 1 || ev.keyCode === 37 && -1 || 0,
+					idx = inst.selectedIndex,
+					len = inst.thumbs.length;
+				if (indexDiff && (inst.conf.keyNavLoop || (indexDiff > 0 && idx + indexDiff < len || indexDiff < 0 && idx + indexDiff >= 0))) {
+					inst.selectedIndex = (idx + indexDiff + len) % len;
+					inst.setupContent();
 				}
 			}
+			obj.conf = helpers.inject({
+				'keyNavLoop': true
+			}, obj.conf);
 			obj.on('afterClose', function (ev) {
 				if (this.thumbs.length) {
 					helpers.off(doc, 'keyup', nextPrevious);
@@ -475,14 +629,14 @@
 		
 		// display close link up top
 		function LBCloseButton(obj, helpers) {
+			function close (ev) {
+				this.close();
+			}
 			obj.conf = helpers.inject({
 				'closeCls': 'LBclose',
 				'closeHTML': 'Close'
 			}, obj.conf);
-			function close (ev) {
-				this.close();
-			}
-			obj.on('afterSetupContent', function (ev) {
+			obj.on('afterOpen', function (ev) {
 				var inst = this,
 					conf = inst.conf,
 					wrapperElm = inst.content,
@@ -494,21 +648,30 @@
 				wrapperElm.appendChild(closeElm);
 				helpers.on(closeElm, 'click', close, inst);
 			});
+			obj.on('afterClose', function (ev) {
+				helpers.off(closeElm, 'click', close, this);
+			});
 		}
-
+		
+		/* Extend constructor */
 		LightBox.extend(LBCleanerPlugin);
 		LightBox.extend(LBEventsPlugin);
 		LightBox.extend(LBDownloadPlugin);
-		LightBox.extend(LBEscapeClosePlugin);
+		//LightBox.extend(LBEscapeClosePlugin);
 		
 		lb1 = LightBox(document.querySelectorAll(".list1 .lb img"), {
 			'downloadModCls': 'withShortDownload',
-			'downloadHTML': '&#8595;'
+			'downloadHTML': '&#8595;',
+			'closeHTML': '&times;'
 		});
+		
+		lb1.extend(LBEventsPlugin);
 		lb1.extend(LBDisplayTitlePlugin);
 		lb1.extend(LBKeyboardNav);
 		lb1.extend(LBCloseButton);
-		
+		//lb1.extend(LBDownloadPlugin);
+		lb1.extend(LBEscapeClosePlugin);
+		/*
 		lb2 = LightBox(document.querySelectorAll(".list2 .lb img"));
 		
 		function CustomLightBox() {
@@ -517,6 +680,8 @@
 			l.extend(LBCloseButton);
 			return l;
 		}
-		lb3 = CustomLightBox(document.querySelectorAll(".list3 .lb img"))
+		lb3 = CustomLightBox(document.querySelectorAll(".list3 .lb img"), {
+			'keyNavLoop': false
+		});*/
 	</script>
 </html>
